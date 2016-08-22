@@ -1,0 +1,9 @@
+{
+  "REGION": "eu-west-1",
+  "CLUSTER": "minard",
+  "SERVICE": "minard-charles",
+  "CONTAINER": "charles",
+  "IMAGE": "366857391347.dkr.ecr.eu-west-1.amazonaws.com/charles",
+  "BUCKET": "lucify-configuration",
+  "KEY": "ecs_services/charles_tag"
+}

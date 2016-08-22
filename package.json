@@ -1,0 +1,51 @@
+{
+  "name": "lucify-ecs-upd8r",
+  "version": "0.1.0",
+  "description": "Minard backend",
+  "main": "dist/src/index.js",
+  "dependencies": {
+    "aws-sdk": "^2.5.2",
+    "commander": "^2.9.0",
+    "ecs-deploy": "^1.1.1",
+    "git-rev-sync": "^1.6.0",
+    "lodash": "^4.15.0"
+  },
+  "devDependencies": {
+    "@types/aws-sdk": "0.0.33",
+    "@types/chai": "^3.4.30",
+    "@types/commander": "^2.3.29",
+    "@types/lodash": "^4.14.32",
+    "@types/mocha": "^2.2.29",
+    "chai": "^3.5.0",
+    "mocha": "^3.0.2"
+  },
+  "scripts": {
+    "clean-test": "rm -rf dist && npm run-script transpile && mocha ./dist/**/*-spec.js",
+    "test": "mocha --opts mocha.opts",
+    "dev": "npm run transpile && node-dev --debug=5858 dist/src/index.js",
+    "start": "node dist/src/index.js",
+    "transpile": "tsc",
+    "lint": "tslint 'src/**/*.ts'"
+  },
+  "contributors": [
+    "Juho Ojala <juho@lucify.com>",
+    "Ville Saarinen <ville.saarinen@lucify.com>",
+    "Ville Väänänen <ville@lucify.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucified/lucify-ecs-upd8r.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lucified/lucify-ecs-upd8r/issues"
+  },
+  "homepage": "https://github.com/lucified/lucify-ecs-upd8r#readme",
+  "directories": {
+    "test": "test"
+  },
+  "author": "Ville Väänänen",
+  "bin": {
+    "ecs-upd8r": "dist/src/index.js"
+  }
+}
