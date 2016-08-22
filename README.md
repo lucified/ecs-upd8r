@@ -52,7 +52,9 @@ every option can be specified by an environment variable, which have precedence.
   DOCKERFILE: 'Dockerfile'
 }
 ```
-Every option without a default value is mandatory.
+Every option without a default value is mandatory, except `IMAGE_TAG`.
+If the command is run inside a git repository, the tag will be
+a shortened SHA1 of the HEAD commit.
 
 # Usage
 
