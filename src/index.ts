@@ -111,6 +111,7 @@ function dockerLogin({user, password, endpoint}) {
   return runDocker(
     'silent',
     'login',
+    '-e', 'none',
     '-u', user,
     '-p', password,
     endpoint
