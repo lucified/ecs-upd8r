@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import * as AWS from 'aws-sdk';
+import * as chalk from 'chalk';
 import { spawn } from 'child_process';
 import * as program from 'commander';
 
 import config, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
 import { promisify } from './promisify';
+
 
 program
   .version('0.0.1')
@@ -19,14 +21,15 @@ program
   .parse(process.argv);
 
 const opts = program.opts();
-
-switch (opts.part) {
+switch (opts.subCommand) {
   case 'login':
     ecrLogin(config)
+      .then(dockerLogin)
       .then(console.log, console.log);
     break;
   case 'build':
     ecrLogin(config)
+      .then(r => build(config, tryPrependRepo(config.IMAGE, r.endpoint)))
       .then(console.log, console.log);
     break;
   case 'restart-service':
@@ -42,7 +45,7 @@ switch (opts.part) {
       .then(console.log, console.log);
     break;
   default:
-    if (!opts.part) {
+    if (!opts.subCommand) {
       start(config)
         .catch(console.log);
     } else {
@@ -55,12 +58,17 @@ switch (opts.part) {
 // const tag = opts.tag as string;
 
 async function runDocker(...args: string[]): Promise<boolean> {
-
+  let stdio: any = 'inherit';
+  let silent = false;
+  if (args[0] === 'silent') {
+    args.shift();
+    silent = true;
+  }
   return new Promise<boolean>((resolve, reject) => {
-    const docker = spawn('docker', args, {
-      stdio: 'inherit',
-    });
-    console.log(['docker'].concat(args).join(' '));
+    const docker = spawn('docker', args, { stdio });
+    if (!silent) {
+      console.log(['docker'].concat(args).join(' '));
+    }
     docker.on('close', (code) => {
       if (code !== 0) {
         console.log(`docker process exited with code ${code}`);
@@ -96,6 +104,16 @@ async function ecrLogin(config: IConfig): Promise<EcrLogin> {
     password: parts[1],
     endpoint: o.proxyEndpoint,
   };
+}
+
+function dockerLogin({user, password, endpoint}) {
+  return runDocker(
+    'silent',
+    'login',
+    '-u', user,
+    '-p', password,
+    endpoint
+  );
 }
 
 function build(config: IConfig, image?) {
@@ -141,40 +159,48 @@ function getRevision(taskDefinitionArn: string) {
   return parseInt(parts[parts.length - 1], 10);
 }
 
-async function start(config: IConfig) {
-
-  // get ECR login
-  const { user, password, endpoint } = await ecrLogin(config);
-
-  // login with Docker
-  await runDocker(
-    'login',
-    '-u', user,
-    '-p', password,
-    endpoint
-  );
-
-  // build
-  let image = config.IMAGE;
-  if (config.IMAGE.indexOf('/') === -1) {
+function tryPrependRepo(image, endpoint) {
+  let newImage = image;
+  if (image.indexOf('/') === -1) {
     const parts = endpoint.split('//');
     if (parts.length === 2) {
-      image = parts[1] + '/' + image;
+      newImage = parts[1] + '/' + image;
     }
   }
+  return newImage;
+}
 
+async function start(config: IConfig) {
+
+  console.log(chalk.bold.green('Logging in to ECR\n'));
+  // get ECR login
+  const credentials = await ecrLogin(config);
+
+  // login with Docker
+  await dockerLogin(credentials);
+
+  console.log(chalk.bold.green('\nBuilding the Docker image\n'));
+  // build
+  const image = tryPrependRepo(config.IMAGE, credentials.endpoint);
   await build(config, image);
-  console.log('Built succesfully');
+  // console.log(chalk.bold.green('Built succesfully'));
 
+  console.log(chalk.bold.green('\nPushing to ECR\n'));
   await push(config, image);
-  console.log('Pushed succesfully');
+  // console.log(chalk.bold.green('Pushed succesfully'));
 
   // deploy service
-  const response = await deployer.deploy(config);
+  console.log(chalk.bold.green('\nRestarting ECS service %s\n'), config.SERVICE);
+  const configCopy = Object.assign({}, config, {IMAGE: image});
+  const response = await deployer.deploy(configCopy);
   const revision = getRevision(response.service.taskDefinition);
-  console.log(`Service updated to revision ${revision} succesfully`);
+  // console.log(chalk.bold.green('%s restarted and updated to revision %s succesfully'), config.SERVICE, revision);
 
+
+  console.log(chalk.bold.green('\nUpdating revision and image tag to S3\n'));
   await s3(config, revision);
-  console.log('Tag updated succesfully');
+
+  console.log(chalk.bold.green('\nDONE'));
+
 
 }

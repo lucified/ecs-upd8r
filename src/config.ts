@@ -31,7 +31,6 @@ if (config.IMAGE_TAG === '') {
   let sha1: string = process.env.SHA1 ? process.env.SHA1 : process.env.CIRCLE_SHA1;
 
   if (!sha1) {
-    console.log(__dirname);
     sha1 = git.long(process.cwd());
   }
 

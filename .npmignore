@@ -1,0 +1,8 @@
+.vscode
+.dockerignore
+.gitignore
+ecs-upd8r.json
+mocha.opts
+tsconfig.json
+tslint.json
+node_modules/
