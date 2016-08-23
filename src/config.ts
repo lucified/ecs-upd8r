@@ -2,7 +2,7 @@ import * as deployer from './ecs-deploy';
 import * as path from 'path';
 
 const configDefaults = {
-  REGION: '',
+  REGION: 'eu-west-1',
   CLUSTER: '',
   SERVICE: '',
   CONTAINER: '',

@@ -3,6 +3,10 @@ import * as _ from 'lodash';
 
 import { IConfig } from './config';
 
+
+
+
+
 export function deploy(opts: IConfig, onlyTask?: boolean) {
   const config = overrideValues(opts, {
     REGION: '',
@@ -49,6 +53,7 @@ export function deploy(opts: IConfig, onlyTask?: boolean) {
   return newTD.then(function(result) {
       const registeredTask = result.taskDefinition;
       console.log('Next task definition: ' + registeredTask.taskDefinitionArn);
+
       return ecs.updateService({
         cluster: config.CLUSTER,
         service: config.SERVICE,
@@ -57,7 +62,7 @@ export function deploy(opts: IConfig, onlyTask?: boolean) {
     });
 }
 
-function nextTask(task, containerName, image, tag) {
+function nextTask(task, containerName, image?, tag?) {
   return {
     family: task.family,
     volumes: task.volumes,
@@ -70,13 +75,20 @@ function nextTask(task, containerName, image, tag) {
   };
 }
 
-function nextContainer(container, image, tag) {
+function nextContainer(container: {image: string, environment: string}, image?: string, tag?: string) {
+  const parts = container.image.split(':');
+  const originalTag = parts.pop();
+  const originalImage = parts.join(':');
+  let nextTag = tag || originalTag;
+  let nextImage = image || originalImage;
+  if (image && !tag) {
+    tag = 'latest';
+  }
+  console.log('Current image: ' + container.image);
+  console.log('Next image: ' + nextImage + ':' + nextTag);
+
   return _.assign({}, container, {
-    image: image + ':' + tag,
-    environment: upsert(container.environment, 'name', {
-      name: 'IMAGE_TAG',
-      value: tag,
-    }),
+    image: nextImage + ':' + nextTag,
   });
 }
 

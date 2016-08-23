@@ -18,6 +18,7 @@ program
   .option('-s, --sub-command <which>',
     'login|build|restart-service|taskDefinition',
     /^(login|build|restart\-service|taskDefinition)$/)
+  .option('--no-login', 'Skip login')
   .parse(process.argv);
 
 const opts = program.opts();
@@ -33,20 +34,20 @@ switch (opts.subCommand) {
       .then(console.log, console.log);
     break;
   case 'restart-service':
-    deployer.deploy(config)
+    deployer.deploy(config, false)
+      .then(response => {
+        return s3(config, response.service.taskDefinition);
+      })
       .then(console.log, console.log);
     break;
   case 'taskDefinition':
     deployer.deploy(config, true)
-      .then(response => {
-        const revision = getRevision(response.taskDefinition.taskDefinitionArn);
-        return s3(config, revision);
-      })
       .then(console.log, console.log);
     break;
   default:
     if (!opts.subCommand) {
-      start(config)
+      console.log(opts);
+      start(config, opts.login)
         .catch(console.log);
     } else {
       console.error('Invalid syntax');
@@ -132,8 +133,10 @@ function push(config: IConfig, image?) {
   );
 }
 
-async function s3(config: IConfig, revision: number) {
+async function s3(config: IConfig, taskDefinitionArn: string) {
   const s3 = new AWS.S3({ region: config.REGION });
+  const revision = getRevision(taskDefinitionArn);
+  const image = getImage(taskDefinitionArn);
   const put = promisify(s3.putObject, s3);
   const tagKey = config.KEY + '_tag';
   const revisionKey = config.KEY + '_revision';
@@ -159,6 +162,18 @@ function getRevision(taskDefinitionArn: string) {
   return parseInt(parts[parts.length - 1], 10);
 }
 
+function getImage(imageWithTag: string) {
+  const parts = imageWithTag.split(':');
+  parts.pop();
+  return parts.join(':');
+}
+
+function getTag(imageWithTag: string) {
+  const parts = imageWithTag.split(':');
+  return parts[parts.length - 1];
+}
+
+
 function tryPrependRepo(image, endpoint) {
   let newImage = image;
   if (image.indexOf('/') === -1) {
@@ -170,18 +185,20 @@ function tryPrependRepo(image, endpoint) {
   return newImage;
 }
 
-async function start(config: IConfig) {
+async function start(config: IConfig, login = true) {
 
-  console.log(chalk.bold.green('Logging in to ECR\n'));
-  // get ECR login
-  const credentials = await ecrLogin(config);
+  let image = config.IMAGE;
+  if (login) {
+    console.log(chalk.bold.green('Logging in to ECR\n'));
+    // get ECR login
+    const credentials = await ecrLogin(config);
+    image = tryPrependRepo(config.IMAGE, credentials.endpoint);
 
-  // login with Docker
-  await dockerLogin(credentials);
-
+    // login with Docker
+    await dockerLogin(credentials);
+  }
   console.log(chalk.bold.green('\nBuilding the Docker image\n'));
   // build
-  const image = tryPrependRepo(config.IMAGE, credentials.endpoint);
   await build(config, image);
   // console.log(chalk.bold.green('Built succesfully'));
 
@@ -193,12 +210,11 @@ async function start(config: IConfig) {
   console.log(chalk.bold.green('\nRestarting ECS service %s\n'), config.SERVICE);
   const configCopy = Object.assign({}, config, {IMAGE: image});
   const response = await deployer.deploy(configCopy);
-  const revision = getRevision(response.service.taskDefinition);
   // console.log(chalk.bold.green('%s restarted and updated to revision %s succesfully'), config.SERVICE, revision);
 
 
   console.log(chalk.bold.green('\nUpdating revision and image tag to S3\n'));
-  await s3(config, revision);
+  await s3(config, response.service.taskDefinition);
 
   console.log(chalk.bold.green('\nDONE'));
 
