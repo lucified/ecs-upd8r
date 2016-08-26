@@ -35,18 +35,17 @@ switch (opts.subCommand) {
     break;
   case 'restart-service':
     deployer.deploy(config, false)
-      .then(response => {
-        return s3(config, response.service.taskDefinition);
-      })
+      .then(response => s3(config, response.service.taskDefinition))
       .then(console.log, console.log);
     break;
   case 'taskDefinition':
     deployer.deploy(config, true)
       .then(console.log, console.log);
     break;
+  case 'update-terraform':
+    break;
   default:
     if (!opts.subCommand) {
-      console.log(opts);
       start(config, opts.login)
         .catch(console.log);
     } else {
@@ -54,9 +53,6 @@ switch (opts.subCommand) {
     }
     break;
 }
-
-// const repository = opts.repository as string;
-// const tag = opts.tag as string;
 
 async function runDocker(...args: string[]): Promise<boolean> {
   let stdio: any = 'inherit';
@@ -200,11 +196,9 @@ async function start(config: IConfig, login = true) {
   console.log(chalk.bold.green('\nBuilding the Docker image\n'));
   // build
   await build(config, image);
-  // console.log(chalk.bold.green('Built succesfully'));
 
   console.log(chalk.bold.green('\nPushing to ECR\n'));
   await push(config, image);
-  // console.log(chalk.bold.green('Pushed succesfully'));
 
   // deploy service
   console.log(chalk.bold.green('\nRestarting ECS service %s\n'), config.SERVICE);

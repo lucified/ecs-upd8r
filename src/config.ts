@@ -39,7 +39,7 @@ if (config.IMAGE_TAG === '') {
     config.IMAGE_TAG = sha1;
     const build = process.env.BUILD_NUM ? process.env.BUILD_NUM : process.env.CIRCLE_BUILD_NUM;
     if (build) {
-      config.IMAGE_TAG =  + `${build}_` + config.IMAGE_TAG;
+      config.IMAGE_TAG = `${build}_${config.IMAGE_TAG}`;
     }
   }
 }
