@@ -109,6 +109,7 @@ function dockerLogin({user, password, endpoint}) {
     'login',
     '-u', user,
     '-p', password,
+    '-e', 'none',
     endpoint
   );
 }
