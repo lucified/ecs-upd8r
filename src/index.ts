@@ -26,32 +26,41 @@ switch (opts.subCommand) {
   case 'login':
     ecrLogin(config)
       .then(dockerLogin)
-      .then(console.log, console.log);
+      .then(console.log, fail());
     break;
   case 'build':
     ecrLogin(config)
       .then(r => build(config, tryPrependRepo(config.IMAGE, r.endpoint)))
-      .then(console.log, console.log);
+      .then(console.log, fail());
     break;
   case 'restart-service':
     deployer.deploy(config, false)
       .then(response => s3(config, response.service.taskDefinition))
-      .then(console.log, console.log);
+      .then(console.log, fail());
     break;
   case 'taskDefinition':
     deployer.deploy(config, true)
-      .then(console.log, console.log);
-    break;
-  case 'update-terraform':
+      .then(console.log, fail());
     break;
   default:
     if (!opts.subCommand) {
       start(config, opts.login)
-        .catch(console.log);
+        .catch(fail());
     } else {
       console.error('Invalid syntax');
     }
     break;
+}
+
+function fail(msg?: string) {
+  if(msg) {
+    console.log(msg);
+  }
+  return (err) => {
+    console.log(chalk.bold.red('\nFailed with error:\n'));
+    console.log(err);
+    process.exit(1);
+  };
 }
 
 async function runDocker(...args: string[]): Promise<boolean> {
