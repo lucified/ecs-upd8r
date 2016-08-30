@@ -6,3 +6,4 @@ mocha.opts
 tsconfig.json
 tslint.json
 node_modules/
+test/
