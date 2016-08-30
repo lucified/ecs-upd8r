@@ -1,0 +1,9 @@
+import { IConfig } from '../src/config';
+
+export default {
+  REGION: 'eu-west-1',
+  CLUSTER: 'default',
+  SERVICE: 'foo',
+  BUCKET: 'bar',
+  KEY: 'ecs_services/foo',
+} as IConfig;
