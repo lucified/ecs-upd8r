@@ -3,11 +3,93 @@ import * as _ from 'lodash';
 
 import { IConfig } from './config';
 
+interface Container { image: string; environment: string; name: string; }
+interface TaskDefinition {
+  family: string;
+  volumes?: any;
+  containerDefinitions: Container[];
+}
+interface RegisteredTaskDefinition extends TaskDefinition {
+  taskDefinitionArn: string;
+  revision: number;
+  status: string;
+}
 
+let _ecs: any;
+function getECS(region?: string) {
+  if (!_ecs) {
+    const awsecs = new AWS.ECS({ region });
+    _ecs = promisifyMethods(awsecs, [
+      'describeServices',
+      'registerTaskDefinition',
+      'updateService',
+      'describeTaskDefinition',
+    ]);
+  }
+  return _ecs;
+}
 
+let _s3: any;
+function getS3(region?: string) {
+  if (!_s3) {
+    const awss3 = new AWS.S3({ region });
+    _s3 = promisifyMethods(awss3, [
+      'getObject',
+      'putObject',
+    ]);
+  }
+  return _s3;
+}
 
+export async function getTaskDefinition(config: IConfig): Promise<RegisteredTaskDefinition> {
+  const ecs = getECS(config.REGION);
 
-export function deploy(opts: IConfig, onlyTask?: boolean) {
+  const result = await ecs.describeServices({
+    cluster: config.CLUSTER, services: [config.SERVICE],
+  });
+
+  const tdResponse = await ecs.describeTaskDefinition({
+    taskDefinition: result.services[0].taskDefinition,
+  });
+
+  return tdResponse.taskDefinition;
+}
+
+export function registerTaskDefinition(
+  config: IConfig,
+  _taskDefinition: TaskDefinition): Promise<RegisteredTaskDefinition> {
+
+  let taskDefinition = _taskDefinition;
+  if (isRegistered(_taskDefinition)) {
+    taskDefinition = registeredToVanilla(_taskDefinition);
+  }
+  const ecs = getECS(config.REGION);
+  return ecs.registerTaskDefinition(taskDefinition)
+    .then(result => result.taskDefinition);
+}
+
+function registeredToVanilla(definition: RegisteredTaskDefinition): TaskDefinition {
+  return {
+    family: definition.family,
+    containerDefinitions: definition.containerDefinitions,
+    volumes: definition.volumes,
+  };
+}
+
+function isRegistered(definition: TaskDefinition | RegisteredTaskDefinition): definition is RegisteredTaskDefinition {
+    return (<RegisteredTaskDefinition> definition).taskDefinitionArn !== undefined;
+}
+
+export async function restartService(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
+  const ecs = getECS(config.REGION);
+  return ecs.updateService({
+    cluster: config.CLUSTER,
+    service: config.SERVICE,
+    taskDefinition: taskDefinition.taskDefinitionArn,
+  });
+}
+
+export async function deploy(opts: IConfig) {
   const config = overrideValues(opts, {
     REGION: '',
     CLUSTER: '',
@@ -15,7 +97,34 @@ export function deploy(opts: IConfig, onlyTask?: boolean) {
     CONTAINER: '',
     IMAGE: '',
     IMAGE_TAG: '',
-  });
+  }) as IConfig;
+
+  const missingValues = falseyKeys(config);
+  if (missingValues.length) {
+    throw new Error(
+      'Error: All configuration values are required.  ' +
+      'Missing values: ' + missingValues.join(', ')
+    );
+  }
+  const currentTaskDefinition = await getTaskDefinition(config);
+  const currentContainer = getContainer(config.CONTAINER, currentTaskDefinition);
+  const nextContainer = updateContainerImage(currentContainer, config.IMAGE!, config.IMAGE_TAG!);
+  const nextTaskDefinition = nextTask(currentTaskDefinition, nextContainer);
+  const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
+
+  await restartService(config, registeredTaskDefinition);
+  return {
+    taskDefinition: registeredTaskDefinition,
+    container: nextContainer,
+  };
+}
+
+export async function restart(opts: IConfig) {
+  const config = overrideValues(opts, {
+    REGION: '',
+    CLUSTER: '',
+    SERVICE: '',
+  }) as IConfig;
 
   const missingValues = falseyKeys(config);
   if (missingValues.length) {
@@ -25,57 +134,34 @@ export function deploy(opts: IConfig, onlyTask?: boolean) {
     );
   }
 
-  const awsecs = new AWS.ECS({ region: config.REGION });
-  const ecs = promisifyMethods(awsecs, [
-    'describeServices',
-    'registerTaskDefinition',
-    'updateService',
-    'describeTaskDefinition',
-  ]);
-  const newTD = ecs.describeServices({
-    cluster: config.CLUSTER, services: [config.SERVICE],
-  })
-    .then(function(result) {
-      return ecs.describeTaskDefinition({
-        taskDefinition: result.services[0].taskDefinition,
-      });
-    })
-    .then(function(result) {
-      const task = result.taskDefinition;
-      console.log('Current task definition: ' + task.taskDefinitionArn);
-      return ecs.registerTaskDefinition(nextTask(task, config.CONTAINER, config.IMAGE, config.IMAGE_TAG));
-    });
+  const currentTaskDefinition = await getTaskDefinition(config);
+  const registeredTaskDefinition = await registerTaskDefinition(config, currentTaskDefinition);
 
-  if (onlyTask) {
-    return newTD;
-  }
-
-  return newTD.then(function(result) {
-      const registeredTask = result.taskDefinition;
-      console.log('Next task definition: ' + registeredTask.taskDefinitionArn);
-
-      return ecs.updateService({
-        cluster: config.CLUSTER,
-        service: config.SERVICE,
-        taskDefinition: registeredTask.taskDefinitionArn,
-      });
-    });
+  await restartService(config, registeredTaskDefinition);
+  return {
+    current: registeredTaskDefinition,
+    previous: currentTaskDefinition,
+  };
 }
 
-function nextTask(task, containerName, image?, tag?) {
+function getContainer(containerName, taskDefinition: TaskDefinition) {
+  return taskDefinition.containerDefinitions.filter(container => container.name === containerName)[0];
+}
+
+function nextTask(taskDefinition: TaskDefinition, nextContainer: Container): TaskDefinition {
   return {
-    family: task.family,
-    volumes: task.volumes,
-    containerDefinitions: task.containerDefinitions.map(function(container) {
-      if (container.name === containerName) {
-        return nextContainer(container, image, tag);
+    family: taskDefinition.family,
+    volumes: taskDefinition.volumes,
+    containerDefinitions: taskDefinition.containerDefinitions.map<Container>(function (container) {
+      if (container.name === nextContainer.name) {
+        return nextContainer;
       }
       return container;
     }),
   };
 }
 
-function nextContainer(container: {image: string, environment: string}, image?: string, tag?: string) {
+function updateContainerImage(container: Container, image: string, tag?: string): Container {
   const parts = container.image.split(':');
   const originalTag = parts.pop();
   const originalImage = parts.join(':');
@@ -84,13 +170,54 @@ function nextContainer(container: {image: string, environment: string}, image?: 
   if (image && !tag) {
     tag = 'latest';
   }
-  console.log('Current image: ' + container.image);
-  console.log('Next image: ' + nextImage + ':' + nextTag);
-
   return _.assign({}, container, {
     image: nextImage + ':' + nextTag,
   });
 }
+
+export async function syncRevision(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
+  if (!config.BUCKET || !config.KEY) {
+    throw new Error(`Can't syncRevision without since BUCKET or KEY is not set`);
+  }
+  const S3 = getS3(config.REGION);
+  const revision = taskDefinition.revision;
+  const revisionKey = config.KEY + '_revision';
+  await S3.putObject({
+    Bucket: config.BUCKET,
+    Key: revisionKey,
+    ContentType: 'text/plain',
+    Body: String(revision),
+  });
+  console.log(`s3://${config.BUCKET}/${revisionKey} => ${revision}`);
+}
+
+export async function syncImageTag(config: IConfig, container: Container) {
+  if (!config.BUCKET || !config.KEY) {
+    throw new Error(`Can't syncImageTag without since BUCKET or KEY is not set`);
+  }
+  const S3 = getS3(config.REGION);
+  const tag = getTag(container.image);
+  const tagKey = config.KEY + '_tag';
+  await S3.putObject({
+    Bucket: config.BUCKET,
+    Key: tagKey,
+    ContentType: 'text/plain',
+    Body: tag,
+  });
+  console.log(`s3://${config.BUCKET}/${tagKey} => ${tag}`);
+}
+
+function getImage(imageWithTag: string) {
+  const parts = imageWithTag.split(':');
+  parts.pop();
+  return parts.join(':');
+}
+
+function getTag(imageWithTag: string) {
+  const parts = imageWithTag.split(':');
+  return parts[parts.length - 1];
+}
+
 
 export function overrideValues(overrides, defaults) {
   return _.assign({}, defaults, _.pick(overrides, _.keys(defaults)));
@@ -107,11 +234,11 @@ function promisifyMethods(obj, methods) {
   return obj;
 }
 
- function promisify(fn, context) {
-  return function() {
+function promisify(fn, context) {
+  return function () {
     const args = _.toArray(arguments);
-    return new Promise(function(resolve, reject) {
-      fn.apply(context, args.concat(function(error, result) {
+    return new Promise(function (resolve, reject) {
+      fn.apply(context, args.concat(function (error, result) {
         if (error) {
           reject(error);
         } else {

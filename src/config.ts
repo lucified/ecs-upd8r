@@ -1,19 +1,30 @@
 import * as deployer from './ecs-deploy';
 import * as path from 'path';
 
-const configDefaults = {
+const configDefaults: IConfig = {
   REGION: 'eu-west-1',
-  CLUSTER: '',
+  CLUSTER: 'default',
+  DOCKERFILE: 'Dockerfile',
   SERVICE: '',
   CONTAINER: '',
   IMAGE: '',
   IMAGE_TAG: '',
   BUCKET: '',
   KEY: '',
-  DOCKERFILE: 'Dockerfile',
 };
 
-export type IConfig = typeof configDefaults;
+export interface IConfig {
+  CLUSTER?: string;
+  SERVICE?: string;
+  CONTAINER?: string;
+  REGION?: string;
+  IMAGE?: string;
+  IMAGE_TAG?: string;
+  BUCKET?: string;
+  KEY?: string;
+  DOCKERFILE?: string;
+}
+
 
 let config = Object.assign({}, configDefaults);
 const configFilePath = path.join(process.cwd(), 'ecs-upd8r');
@@ -24,10 +35,10 @@ try {
   const fc = require(configFilePath);
   config = deployer.overrideValues(fc, config);
 } catch (err) {
-  console.log('No config-file found');
+  console.log('[INFO] No config-file found, using only env variables');
 }
 
-if (config.IMAGE_TAG === '') {
+if (!config.IMAGE_TAG) {
   let sha1: string = process.env.SHA1 ? process.env.SHA1 : process.env.CIRCLE_SHA1;
 
   if (!sha1) {
@@ -44,4 +55,4 @@ if (config.IMAGE_TAG === '') {
   }
 }
 
-export default deployer.overrideValues(process.env, config);
+export default deployer.overrideValues(process.env, config) as IConfig;
