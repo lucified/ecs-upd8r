@@ -12,7 +12,7 @@ import { promisify } from './promisify';
 let version = 'unknown';
 try {
   version = require('../../package').version;
-} catch (err){
+} catch (err) {
 
 }
 try {
@@ -28,7 +28,7 @@ program
   Optionally specify a sub-command.`)
   .option('-s, --sub-command <which>',
   'login|build|restart-service|taskDefinition',
-  /^(login|build|restart\-service|taskDefinition)$/)
+  /^(login|build|restart\-service|restart\-terraform|taskDefinition)$/)
   .option('--no-login', 'Skip login')
   .parse(process.argv);
 
@@ -47,6 +47,10 @@ switch (opts.subCommand) {
     break;
   case 'restart-service':
     restartService(config)
+      .catch(fail());
+    break;
+  case 'restart-terraform':
+    terraformRestart(config)
       .catch(fail());
     break;
   case 'taskDefinition':
@@ -79,12 +83,30 @@ export async function restartService(config: IConfig) {
 
   const { current, previous } = await deployer.restart(config);
   await deployer.syncRevision(config, current);
+
   return {
     current,
     previous,
   };
 }
 
+export async function terraformRestart(config: IConfig) {
+
+  console.log(chalk.bold.green('\nRestarting the service to use the latest taskDefinition in S3\n'));
+
+  const {container, taskDefinition} = await deployer.terraformRestart(config);
+
+  console.log('Updated service %s to use image %s', config.SERVICE, container.image);
+
+  console.log(chalk.bold.green('\nSyncing revision and image tag to S3\n'));
+  await deployer.syncRevision(config, taskDefinition);
+  await deployer.syncImageTag(config, container);
+
+  return {
+    container,
+    taskDefinition,
+  };
+}
 
 async function runDocker(...args: string[]): Promise<boolean> {
   let stdio: any = 'inherit';
@@ -122,7 +144,7 @@ interface EcrLogin {
 }
 
 export async function ecrLogin(config: IConfig): Promise<EcrLogin> {
-  const ecr = new (<any> AWS).ECR({ region: config.REGION });
+  const ecr = new (<any>AWS).ECR({ region: config.REGION });
   const getToken = promisify<any>(ecr.getAuthorizationToken, ecr);
   const response = await getToken();
   const o = response.authorizationData[0];
