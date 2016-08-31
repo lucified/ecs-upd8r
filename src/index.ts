@@ -9,19 +9,20 @@ import config, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
 import { promisify } from './promisify';
 
-
+require('pkginfo')(module, 'version');
 program
-  .version('0.0.1')
+  .version(module.exports.version)
   .usage('[options]')
   .description(`Build, tag and upload a Docker image and then restart an ECS service.
   Optionally specify a sub-command.`)
   .option('-s, --sub-command <which>',
-    'login|build|restart-service|taskDefinition',
-    /^(login|build|restart\-service|taskDefinition)$/)
+  'login|build|restart-service|restart-terraform|taskDefinition',
+  /^(login|build|restart\-service|restart\-terraform|taskDefinition)$/)
   .option('--no-login', 'Skip login')
   .parse(process.argv);
 
 const opts = program.opts();
+
 switch (opts.subCommand) {
   case 'login':
     ecrLogin(config)
@@ -34,12 +35,16 @@ switch (opts.subCommand) {
       .then(console.log, fail());
     break;
   case 'restart-service':
-    deployer.deploy(config, false)
-      .then(response => s3(config, response.service.taskDefinition))
-      .then(console.log, fail());
+    restartService(config)
+      .catch(fail());
+    break;
+  case 'restart-terraform':
+    terraformRestart(config)
+      .catch(fail());
     break;
   case 'taskDefinition':
-    deployer.deploy(config, true)
+    deployer.getTaskDefinition(config)
+      .then(current => deployer.registerTaskDefinition(config, current))
       .then(console.log, fail());
     break;
   default:
@@ -53,13 +58,42 @@ switch (opts.subCommand) {
 }
 
 function fail(msg?: string) {
-  if(msg) {
+  if (msg) {
     console.log(msg);
   }
   return (err) => {
     console.log(chalk.bold.red('\nFailed with error:\n'));
     console.log(err);
     process.exit(1);
+  };
+}
+
+export async function restartService(config: IConfig) {
+
+  const { current, previous } = await deployer.restart(config);
+  await deployer.syncRevision(config, current);
+
+  return {
+    current,
+    previous,
+  };
+}
+
+export async function terraformRestart(config: IConfig) {
+
+  console.log(chalk.bold.green('\nRestarting the service to use the latest taskDefinition in S3\n'));
+
+  const {container, taskDefinition} = await deployer.terraformRestart(config);
+
+  console.log('Updated service %s to revision %s', config.SERVICE, taskDefinition.revision);
+
+  console.log(chalk.bold.green('\nSyncing revision and image tag to S3\n'));
+  await deployer.syncRevision(config, taskDefinition);
+  await deployer.syncImageTag(config, container);
+
+  return {
+    container,
+    taskDefinition,
   };
 }
 
@@ -98,8 +132,8 @@ interface EcrLogin {
   endpoint: string;
 }
 
-async function ecrLogin(config: IConfig): Promise<EcrLogin> {
-  const ecr = new (<any> AWS).ECR({ region: config.REGION });
+export async function ecrLogin(config: IConfig): Promise<EcrLogin> {
+  const ecr = new (<any>AWS).ECR({ region: config.REGION });
   const getToken = promisify<any>(ecr.getAuthorizationToken, ecr);
   const response = await getToken();
   const o = response.authorizationData[0];
@@ -126,7 +160,7 @@ function dockerLogin({user, password, endpoint}) {
 function build(config: IConfig, image?) {
   return runDocker(
     'build',
-    '-f', config.DOCKERFILE,
+    '-f', config.DOCKERFILE!,
     '-t', `${image || config.IMAGE}:${config.IMAGE_TAG}`,
     '.'
   );
@@ -139,50 +173,32 @@ function push(config: IConfig, image?) {
   );
 }
 
-async function s3(config: IConfig, taskDefinitionArn: string) {
-  const s3 = new AWS.S3({ region: config.REGION });
-  const revision = getRevision(taskDefinitionArn);
-  const image = getImage(taskDefinitionArn);
-  const put = promisify(s3.putObject, s3);
-  const tagKey = config.KEY + '_tag';
-  const revisionKey = config.KEY + '_revision';
-  await put({
-    Bucket: config.BUCKET,
-    Key: tagKey,
-    ContentType: 'text/plain',
-    Body: config.IMAGE_TAG,
-  });
-  console.log(`s3://${config.BUCKET}/${tagKey} => ${config.IMAGE_TAG}` );
-  await put({
-    Bucket: config.BUCKET,
-    Key: revisionKey,
-    ContentType: 'text/plain',
-    Body: String(revision),
-  });
-  console.log(`s3://${config.BUCKET}/${revisionKey} => ${revision}` );
+async function login(config: IConfig) {
+  console.log(chalk.bold.green('Logging in to ECR\n'));
+  // get ECR login
+  const credentials = await ecrLogin(config);
 
+  // login with Docker
+  await dockerLogin(credentials);
+
+  return tryPrependRepo(config.IMAGE, credentials.endpoint);
 }
+
+
 
 function getRevision(taskDefinitionArn: string) {
   const parts = taskDefinitionArn.split(':');
   return parseInt(parts[parts.length - 1], 10);
 }
 
-function getImage(imageWithTag: string) {
-  const parts = imageWithTag.split(':');
-  parts.pop();
-  return parts.join(':');
-}
 
-function getTag(imageWithTag: string) {
-  const parts = imageWithTag.split(':');
-  return parts[parts.length - 1];
+function isECR(image: string) {
+  return image.indexOf('/') === -1; // we assume Docker Hub otherwise
 }
-
 
 function tryPrependRepo(image, endpoint) {
   let newImage = image;
-  if (image.indexOf('/') === -1) {
+  if (isECR(image)) {
     const parts = endpoint.split('//');
     if (parts.length === 2) {
       newImage = parts[1] + '/' + image;
@@ -191,34 +207,31 @@ function tryPrependRepo(image, endpoint) {
   return newImage;
 }
 
-async function start(config: IConfig, login = true) {
+export async function start(config: IConfig, loginFlag = true) {
 
   let image = config.IMAGE;
-  if (login) {
-    console.log(chalk.bold.green('Logging in to ECR\n'));
-    // get ECR login
-    const credentials = await ecrLogin(config);
-    image = tryPrependRepo(config.IMAGE, credentials.endpoint);
-
-    // login with Docker
-    await dockerLogin(credentials);
+  if (loginFlag && isECR(config.IMAGE!)) {
+    image = await login(config);
   }
   console.log(chalk.bold.green('\nBuilding the Docker image\n'));
   // build
   await build(config, image);
 
-  console.log(chalk.bold.green('\nPushing to ECR\n'));
+  console.log(chalk.bold.green('\nPushing to repository\n'));
   await push(config, image);
 
   // deploy service
   console.log(chalk.bold.green('\nRestarting ECS service %s\n'), config.SERVICE);
-  const configCopy = Object.assign({}, config, {IMAGE: image});
-  const response = await deployer.deploy(configCopy);
-  // console.log(chalk.bold.green('%s restarted and updated to revision %s succesfully'), config.SERVICE, revision);
+  const configCopy = Object.assign({}, config, { IMAGE: image });
+  const {container, taskDefinition} = await deployer.deploy(configCopy);
 
+  console.log('Updated service %s to use image %s', config.SERVICE, container.image);
 
-  console.log(chalk.bold.green('\nUpdating revision and image tag to S3\n'));
-  await s3(config, response.service.taskDefinition);
+  if (config.BUCKET && config.KEY) {
+    console.log(chalk.bold.green('\nUpdating revision and image tag to S3\n'));
+    await deployer.syncRevision(configCopy, taskDefinition);
+    await deployer.syncImageTag(configCopy, container);
+  }
 
   console.log(chalk.bold.green('\nDONE'));
 
