@@ -8,4 +8,4 @@ machine:
 
 dependencies:
   pre:
-    - npm install -g typescript@beta
+    - npm install typescript@beta
