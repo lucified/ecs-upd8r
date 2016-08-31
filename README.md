@@ -58,6 +58,7 @@ a shortened SHA1 of the HEAD commit.
 
 # Usage
 
+Get usage instructions with
 ```
 ecs-upd8r -h
 ```
