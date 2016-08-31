@@ -1,7 +1,19 @@
 import { expect } from 'chai';
 
+import { IConfig } from '../src/config';
 import * as ecs from '../src/ecs-deploy';
-import config from './config.test';
+
+console.log(`[WARNING] The tests are run against REAL services.
+Make sure that the service described by the config is something dispensable.\n`);
+
+let config: IConfig;
+try {
+  config = require('./config.test');
+} catch (err) {
+  console.log(`You need to create a "config.test.json" file in the test folder in order to run the tests
+(see "config.test.json.example" for reference)`);
+  process.exit(0);
+}
 
 describe('ecs-upd8r', () => {
 
