@@ -85,7 +85,7 @@ export async function terraformRestart(config: IConfig) {
 
   const {container, taskDefinition} = await deployer.terraformRestart(config);
 
-  console.log('Updated service %s to use image %s', config.SERVICE, container.image);
+  console.log('Updated service %s to revision %s', config.SERVICE, taskDefinition.revision);
 
   console.log(chalk.bold.green('\nSyncing revision and image tag to S3\n'));
   await deployer.syncRevision(config, taskDefinition);

@@ -254,7 +254,7 @@ function updateContainerImage(container: Container, image?: string, tag?: string
 
 export async function syncRevision(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
   if (!config.BUCKET || !config.KEY) {
-    throw new Error(`Can't syncRevision without since BUCKET or KEY is not set`);
+    throw new Error(`Can't syncRevision since BUCKET or KEY is not set`);
   }
   const S3 = getS3(config.REGION);
   const revision = taskDefinition.revision;
