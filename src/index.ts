@@ -9,20 +9,22 @@ import config, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
 import { promisify } from './promisify';
 
-let version = 'unknown';
-try {
-  version = require('../../package').version;
-} catch (err) {
+// let version = 'unknown';
+// try {
+//   version = require('../../package').version;
+// } catch (err) {
 
-}
-try {
-  version = require('../package').version;
-} catch (err) {
+// }
+// try {
+//   version = require('../package').version;
+// } catch (err) {
 
-}
+// }
+
+require('pkginfo')(module, 'version');
 
 program
-  .version(version)
+  .version(module.exports.version)
   .usage('[options]')
   .description(`Build, tag and upload a Docker image and then restart an ECS service.
   Optionally specify a sub-command.`)
