@@ -16,7 +16,7 @@ program
   .description(`Build, tag and upload a Docker image and then restart an ECS service.
   Optionally specify a sub-command.`)
   .option('-s, --sub-command <which>',
-  'login|build|restart-service|taskDefinition',
+  'login|build|restart-service|restart-terraform|taskDefinition',
   /^(login|build|restart\-service|restart\-terraform|taskDefinition)$/)
   .option('--no-login', 'Skip login')
   .parse(process.argv);
