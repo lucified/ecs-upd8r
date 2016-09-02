@@ -1,6 +1,6 @@
 {
   "name": "ecs-upd8r",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Update AWS ECS services easily from command line",
   "main": "./dist/src/index.js",
   "dependencies": {
