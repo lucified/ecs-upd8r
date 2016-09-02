@@ -1,6 +1,6 @@
 {
-  "name": "ecs-upd8r",
-  "version": "0.1.6",
+  "name": "ecs-updater",
+  "version": "0.2.0",
   "description": "Update AWS ECS services easily from command line",
   "main": "./dist/src/index.js",
   "dependencies": {
@@ -33,18 +33,18 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lucified/ecs-upd8r.git"
+    "url": "git+https://github.com/lucified/ecs-updater.git"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/lucified/ecs-upd8r/issues"
+    "url": "https://github.com/lucified/ecs-updater/issues"
   },
-  "homepage": "https://github.com/lucified/lucify-ecs-upd8r#readme",
+  "homepage": "https://github.com/lucified/lucify-ecs-updater#readme",
   "directories": {
     "test": "test"
   },
   "author": "Ville Väänänen",
   "bin": {
-    "ecs-upd8r": "./dist/src/index.js"
+    "ecs-updater": "./dist/src/index.js"
   }
 }

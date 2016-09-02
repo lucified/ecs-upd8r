@@ -15,7 +15,7 @@ try {
   process.exit(0);
 }
 
-describe('ecs-upd8r', () => {
+describe('ecs-updater', () => {
 
   it('can re-register a taskDefinition', async () => {
 
