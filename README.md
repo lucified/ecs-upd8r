@@ -1,15 +1,8 @@
 
 # ecs-updater
 
-Runs the whole process of restarting an AWS ECS service with a freshly built Docker image:
-
-1. Login to ECR
-2. Build a Docker image
-3. Tag the image so that Docker knows to upload it to the ECR repository
-4. Push the image to the repository
-5. Register a new ECS taskDefinition with a reference to the newly built image
-6. Restart the ECS service using the new taskDefinition
-7. Upload metadata into an S3 bucket
+Utility for updating and restarting Docker images
+running in Amazon ECS.
 
 # Requirements
 
@@ -51,6 +44,9 @@ with authorization to perform the needed AWS API calls, corresponding to the fol
   ]
 }
 ```
+
+For operations involving Docker Hub, you will also have
+to be logged in into Docker Hub.
 
 # Installation
 
