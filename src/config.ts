@@ -35,7 +35,10 @@ try {
   const fc = require(configFilePath);
   config = deployer.overrideValues(fc, config);
 } catch (err) {
-  console.log('[INFO] No config-file found, using only env variables');
+  if (err.name === 'SyntaxError') {
+    throw err;
+  }
+  console.log('[INFO] No config-file found in %s, using only env variables', configFilePath);
 }
 
 if (!config.IMAGE_TAG) {
