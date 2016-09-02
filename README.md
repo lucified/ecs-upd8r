@@ -62,8 +62,7 @@ npm install -g ecs-updater
 
 # Configuration
 
-Can read the options from a `ecs-updater.json` file. The JSON file
-has the following fields:
+Reas options from a `ecs-updater.json` file. Following options are available:
 
 - `REGION`: AWS region. Defaults to `eu-west-1`.
 - `CLUSTER`: AWS cluster name, for example `default`.
@@ -116,7 +115,8 @@ This will:
 6. Restart the ECS service using the new taskDefinition
 7. Upload metadata into an S3 bucket
 
-- To run this command, you will need to have define all of the options.
+To run this command, you will need to have define all of the options
+listed in the configuration section (expect for options that have defaults).
 
 ## Restart
 
@@ -161,7 +161,3 @@ the service to restart. To run this command, you will need to have the following
 NOTE: this will not update the revision and tag information to the S3 bucket, which will
 cause Terraform to be out-of-sync. You will need to resolve that manually.
 
-Get usage instructions with
-```
-ecs-updater -h
-```
