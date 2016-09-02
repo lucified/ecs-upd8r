@@ -58,7 +58,8 @@ npm install -g ecs-updater
 
 # Configuration
 
-Reas options from a `ecs-updater.json` file. Following options are available:
+Reads options from a `ecs-updater.json` file in the current working directory.
+Following options are available:
 
 - `REGION`: AWS region. Defaults to `eu-west-1`.
 - `CLUSTER`: AWS cluster name, for example `default`.
