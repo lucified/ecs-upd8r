@@ -258,7 +258,7 @@ export async function syncRevision(config: IConfig, taskDefinition: RegisteredTa
   }
   const S3 = getS3(config.REGION);
   const revision = taskDefinition.revision;
-  const revisionKey = config.KEY + '_revision';
+  const revisionKey = config.KEY + REVISION_SUFFIX;
   await S3.putObject({
     Bucket: config.BUCKET,
     Key: revisionKey,

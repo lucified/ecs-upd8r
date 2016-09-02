@@ -27,7 +27,7 @@ export interface IConfig {
 
 
 let config = Object.assign({}, configDefaults);
-const configFilePath = path.join(process.cwd(), 'ecs-upd8r');
+const configFilePath = path.join(process.cwd(), 'ecs-updater');
 
 const git = require('git-rev-sync');
 
