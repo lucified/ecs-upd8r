@@ -1,8 +1,7 @@
 
 # ecs-updater
 
-Utility for updating and restarting Docker images
-running in Amazon ECS.
+A Node.js CLI utility for updating and restarting AWS Elastic Container Service services.
 
 # Requirements
 
