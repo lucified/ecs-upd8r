@@ -120,7 +120,7 @@ need to be defined, expect for options that have defaults.
 ecs-updater -s restart-terraform
 ```
 
-This will load the most recent task definition from `s3://[BUCKET]/[KEY]_taskdefinition.json and
+This will load the most recent task definition from `s3://[BUCKET]/[KEY]_taskdefinition.json` and
 increment its revision, which will cause the service to restart with an updated task definition.
 The revision and tag information will be updated to the s3 bucket.
 
