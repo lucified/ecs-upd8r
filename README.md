@@ -142,7 +142,7 @@ To run this command, you will need to have the following variables defined:
 - `IMAGE`
 - `DOCKERFILE`
 
-## Restart only
+## Plain restart (advanced)
 
 ```
 ecs-updater -s restart-service
@@ -154,6 +154,6 @@ the service to restart. To run this command, you will need to have the following
 - `CLUSTER`
 - `SERVICE`
 
-NOTE: this will not update the revision and tag information to the S3 bucket, which will
+This will not update the revision and tag information to the S3 bucket, which will
 cause Terraform to be out-of-sync. You will need to resolve that manually.
 
