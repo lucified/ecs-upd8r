@@ -111,8 +111,8 @@ This will:
 6. Restart the ECS service using the new taskDefinition
 7. Upload metadata into an S3 bucket
 
-To run this command, you will need to have define all of the options
-listed in the configuration section (expect for options that have defaults).
+To run this command, all of the options listed in the configuration section
+need to be defined, expect for options that have defaults.
 
 ## Restart
 
@@ -124,7 +124,7 @@ This will load the most recent task definition from `s3://[BUCKET]/[KEY]_taskdef
 increment its revision, which will cause the service to restart with an updated task definition.
 The revision and tag information will be updated to the s3 bucket.
 
-To run this command, you will need to have the following variables defined:
+To run this command, all of the following options need to be defined:
 - `REGION`
 - `CLUSTER`
 - `SERVICE`
@@ -138,7 +138,7 @@ To run this command, you will need to have the following variables defined:
 ecs-updater -s build
 ```
 
-To run this command, you will need to have the following variables defined:
+To run this command, all of the following options need to be defined:
 - `IMAGE`
 - `DOCKERFILE`
 
@@ -148,8 +148,8 @@ To run this command, you will need to have the following variables defined:
 ecs-updater -s restart-service
 ```
 
-This will load the most recent task definitions from AWS and increment its revision, which will cause
-the service to restart. To run this command, you will need to have the following variables defined:
+This will load the most recent task definition from AWS and increment its revision, which will cause
+the service to restart. To run this command, all of the following options need to be defined:
 - `REGION`
 - `CLUSTER`
 - `SERVICE`
