@@ -1,6 +1,6 @@
 {
   "name": "ecs-updater",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Update AWS ECS services easily from command line",
   "main": "./dist/src/index.js",
   "dependencies": {
