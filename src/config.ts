@@ -11,6 +11,7 @@ const configDefaults: IConfig = {
   IMAGE_TAG: '',
   BUCKET: '',
   KEY: '',
+  TASKDEFINITION_KEY: '',
 };
 
 export interface IConfig {
@@ -22,6 +23,7 @@ export interface IConfig {
   IMAGE_TAG?: string;
   BUCKET?: string;
   KEY?: string;
+  TASKDEFINITION_KEY?: string;
   DOCKERFILE?: string;
 }
 

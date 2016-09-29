@@ -63,7 +63,7 @@ export async function getRegisteredTaskDefinition(config: IConfig): Promise<Regi
 
 
 export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition | RegisteredTaskDefinition> {
-  const taskDefinition = await getS3Object<TaskDefinition>(config, TASKDEFINITION_SUFFIX);
+  const taskDefinition = await getS3TaskDefinition(config);
   if (taskDefinition) {
     console.log(`[INFO] Using taskDefinition from s3`);
     return taskDefinition;
@@ -73,8 +73,12 @@ export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition
 
 
 
-export function getS3TaskDefinition(config: IConfig) {
-  return getS3Object<TaskDefinition>(config, TASKDEFINITION_SUFFIX);
+export async function getS3TaskDefinition(config: IConfig) {
+  const taskDefinition = await getS3Object<TaskDefinition>(config, TASKDEFINITION_SUFFIX, config.TASKDEFINITION_KEY);
+  if (taskDefinition && typeof taskDefinition !== 'string') {
+    return taskDefinition;
+  }
+  return undefined;
 }
 
 export function getS3ImageTag(config: IConfig) {
@@ -141,6 +145,9 @@ export async function deploy(opts: IConfig) {
   if (opts.KEY) {
     config.KEY = opts.KEY;
   }
+  if (opts.TASKDEFINITION_KEY) {
+    config.TASKDEFINITION_KEY = opts.TASKDEFINITION_KEY;
+  }
 
 
   const currentTaskDefinition = await getTaskDefinition(config);
@@ -172,6 +179,9 @@ export async function terraformRestart(opts: IConfig) {
       'Error: All configuration values are required.  ' +
       'Missing values: ' + missingValues.join(', ')
     );
+  }
+  if (opts.TASKDEFINITION_KEY) {
+    config.TASKDEFINITION_KEY = opts.TASKDEFINITION_KEY;
   }
 
   const template = await getS3TaskDefinition(config);
@@ -332,12 +342,12 @@ function upsert(array, keys, item) {
 }
 
 
-async function getS3Object<T>(config: IConfig, suffix: string): Promise<T | undefined> {
+async function getS3Object<T>(config: IConfig, suffix?: string, key?: string): Promise<T | string | undefined> {
   if (!config.BUCKET || !config.KEY) {
     return undefined;
   }
   const S3 = getS3(config.REGION);
-  const Key = config.KEY + suffix;
+  const Key = key ? key : config.KEY + suffix;
 
   try {
     const response = await S3.getObject({
