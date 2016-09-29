@@ -4,6 +4,7 @@ import * as AWS from 'aws-sdk';
 import * as chalk from 'chalk';
 import { spawn } from 'child_process';
 import * as program from 'commander';
+import { inspect } from 'util';
 
 import config, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
@@ -36,16 +37,16 @@ switch (opts.subCommand) {
     break;
   case 'restart-service':
     restartService(config)
-      .catch(fail());
+      .then(logObject, fail());
     break;
   case 'restart-terraform':
     terraformRestart(config)
-      .catch(fail());
+      .then(logObject, fail());
     break;
   case 'taskDefinition':
     deployer.getTaskDefinition(config)
       .then(current => deployer.registerTaskDefinition(config, current))
-      .then(console.log, fail());
+      .then(logObject, fail());
     break;
   default:
     if (!opts.subCommand) {
@@ -66,6 +67,11 @@ function fail(msg?: string) {
     console.log(err);
     process.exit(1);
   };
+}
+
+function logObject(obj: any, depth = 4) {
+  const _inspect = inspect as any;
+  console.log(_inspect(obj, { depth, colors: true, maxArrayLength: 10 }));
 }
 
 export async function restartService(config: IConfig) {
