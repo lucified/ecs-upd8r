@@ -26,12 +26,6 @@ let _ecs: AWS.ECS;
 function getECS(region?: string) {
   if (!_ecs) {
     _ecs = new AWS.ECS({ region });
-    // _ecs = promisifyMethods(awsecs, [
-    //   'describeServices',
-    //   'registerTaskDefinition',
-    //   'updateService',
-    //   'describeTaskDefinition',
-    // ]);
   }
   return _ecs;
 }
@@ -40,10 +34,6 @@ let _s3: AWS.S3;
 function getS3(region?: string) {
   if (!_s3) {
     _s3 = new AWS.S3({ region });
-    // _s3 = promisifyMethods(awss3, [
-    //   'getObject',
-    //   'putObject',
-    // ]);
   }
   return _s3;
 }
@@ -274,7 +264,7 @@ export async function syncRevision(config: IConfig, taskDefinition: RegisteredTa
     Key: revisionKey,
     ContentType: 'text/plain',
     Body: String(revision),
-  });
+  }).promise();
   console.log(`s3://${config.BUCKET}/${revisionKey} => ${revision}`);
 }
 
@@ -290,7 +280,7 @@ export async function syncImageTag(config: IConfig, container: Container) {
     Key: tagKey,
     ContentType: 'text/plain',
     Body: tag,
-  });
+  }).promise();
   console.log(`s3://${config.BUCKET}/${tagKey} => ${tag}`);
 }
 
