@@ -1,6 +1,9 @@
 import * as AWS from 'aws-sdk';
 import * as _ from 'lodash';
+import * as _debug from 'debug';
+import { inspect } from 'util';
 
+const debug = _debug('ecs-updater');
 import { IConfig } from './config';
 
 const TASKDEFINITION_SUFFIX =  '_taskdefinition.json';
@@ -8,13 +11,13 @@ const TAG_SUFFIX =  '_tag';
 const REVISION_SUFFIX =  '_revision';
 
 
-interface Container { image: string; environment: string; name: string; }
-interface TaskDefinition {
+export interface Container { image: string; environment: string; name: string; }
+export interface TaskDefinition {
   family: string;
   volumes?: any;
   containerDefinitions: Container[];
 }
-interface RegisteredTaskDefinition extends TaskDefinition {
+export interface RegisteredTaskDefinition extends TaskDefinition {
   taskDefinitionArn: string;
   revision: number;
   status: string;
@@ -127,7 +130,6 @@ export async function deploy(opts: IConfig) {
     CLUSTER: '',
     SERVICE: '',
     CONTAINER: '',
-    IMAGE: '',
     IMAGE_TAG: '',
   }) as IConfig;
 
@@ -152,7 +154,10 @@ export async function deploy(opts: IConfig) {
 
   const currentTaskDefinition = await getTaskDefinition(config);
   const currentContainer = getContainer(config.CONTAINER, currentTaskDefinition);
-  const nextContainer = updateContainerImage(currentContainer, config.IMAGE!, config.IMAGE_TAG!);
+  const nextContainer = {
+    ...currentContainer,
+    image: config.IMAGE_TAG ? updateTag(currentContainer.image, config.IMAGE_TAG) : currentContainer.image,
+  }
   const nextTaskDefinition = nextTask(currentTaskDefinition, nextContainer);
   const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
 
@@ -189,10 +194,14 @@ export async function terraformRestart(opts: IConfig) {
     throw new Error("Couldn't find taskDefinition");
   }
   const imageTag = await getS3ImageTag(config);
-
+  if (!imageTag) {
+    throw new Error("Couldn't find image tag from S3");
+  }
   const currentContainer = getContainer(config.CONTAINER, template);
-
-  const nextContainer = updateContainerImage(currentContainer, undefined, imageTag);
+  const nextContainer = {
+    ...currentContainer,
+    image: updateTag(currentContainer.image, imageTag),
+  }
 
   const nextTaskDefinition = nextTask(template, nextContainer);
   const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
@@ -250,15 +259,15 @@ function nextTask(taskDefinition: TaskDefinition, nextContainer: Container): Tas
   };
 }
 
-function updateContainerImage(container: Container, image?: string, tag?: string): Container {
-  const parts = container.image.split(':');
-  const originalTag = parts.pop();
-  const originalImage = parts.join(':');
-  let nextTag = tag || originalTag;
-  let nextImage = image || originalImage;
-  return _.assign({}, container, {
-    image: nextImage + ':' + nextTag,
-  });
+export function updateTag(image: string, tag: string) {
+  let currentTag: string | undefined;
+  const parts = /^(https?:\/\/)?([\w-_.\/]+)(:\w+)?$/.exec(image);
+  if (!parts) {
+    throw new Error(`Invalid container image: ${image}`);
+  }
+  const newImage = (parts[1] || '') + parts[2] + ':' + tag;
+  debug('Replacing image %s with %s', image, newImage);
+  return newImage;
 }
 
 export async function syncRevision(config: IConfig, taskDefinition: RegisteredTaskDefinition) {

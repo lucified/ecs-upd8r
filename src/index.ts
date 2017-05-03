@@ -4,11 +4,14 @@ import * as AWS from 'aws-sdk';
 import * as chalk from 'chalk';
 import { spawn } from 'child_process';
 import * as program from 'commander';
+import * as _debug from 'debug';
 import { inspect } from 'util';
 
 import config, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
 import { promisify } from './promisify';
+
+const debug = _debug('ecs-updater');
 
 require('pkginfo')(module, 'version');
 program
@@ -88,7 +91,7 @@ export async function restartService(config: IConfig) {
 export async function terraformRestart(config: IConfig) {
 
   console.log(chalk.bold.green('\nRestarting the service to use the latest taskDefinition in S3\n'));
-
+  debug(config);
   const {container, taskDefinition} = await deployer.terraformRestart(config);
 
   console.log('Updated service %s to revision %s', config.SERVICE, taskDefinition.revision);

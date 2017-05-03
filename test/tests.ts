@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import { IConfig } from '../src/config';
 import * as ecs from '../src/ecs-deploy';
+import { updateTag, Container } from "../src/ecs-deploy";
 
 console.log(`[WARNING] The tests are run against REAL services.
 Make sure that the service described by the config is something dispensable.\n`);
@@ -15,6 +16,31 @@ try {
   process.exit(0);
 }
 
+
+describe('updateTag', () => {
+
+  it('should replace tag', async () => {
+    // Arrange
+    const tag = '874_672af8';
+    const newTag = 'baz';
+    const base = '366857391347.dkr.ecr.eu-west-1.amazonaws.com/charles';
+    // Act
+    const image = updateTag(`${base}:${tag}`, newTag);
+    // Assert
+    expect(image).to.eq(`${base}:${newTag}`);
+  });
+
+  it('should insert tag', async () => {
+    // Arrange
+    const newTag = 'baz';
+    const base = 'aaa.bb.c/bar';
+    // Act
+    const image = updateTag(base, newTag);
+    // Assert
+    expect(image).to.eq(`${base}:${newTag}`);
+  });
+
+});
 describe('ecs-updater', () => {
 
   it('can re-register a taskDefinition', async () => {
