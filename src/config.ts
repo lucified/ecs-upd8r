@@ -12,6 +12,7 @@ const configDefaults: IConfig = {
   BUCKET: '',
   KEY: '',
   TASKDEFINITION_KEY: '',
+  TASKDEFINITION_SOURCE: 'both',
 };
 
 export interface IConfig {
@@ -25,6 +26,7 @@ export interface IConfig {
   KEY?: string;
   TASKDEFINITION_KEY?: string;
   DOCKERFILE?: string;
+  TASKDEFINITION_SOURCE: 'ecs-only' | 'both';
 }
 
 let config = Object.assign({}, configDefaults);

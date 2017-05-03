@@ -54,11 +54,16 @@ export async function getRegisteredTaskDefinition(config: IConfig): Promise<Regi
 }
 
 export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition | RegisteredTaskDefinition> {
+  if (config.TASKDEFINITION_SOURCE === 'ecs-only') {
+    console.log(`[INFO] Using taskDefinition from ecs`);
+    return getRegisteredTaskDefinition(config);
+  }
   const taskDefinition = await getS3TaskDefinition(config);
   if (taskDefinition) {
     console.log(`[INFO] Using taskDefinition from s3`);
     return taskDefinition;
   }
+  console.log(`[INFO] Using taskDefinition from ecs`);
   return getRegisteredTaskDefinition(config);
 }
 
@@ -134,6 +139,9 @@ export async function deploy(opts: IConfig) {
   }
   if (opts.TASKDEFINITION_KEY) {
     config.TASKDEFINITION_KEY = opts.TASKDEFINITION_KEY;
+  }
+  if (opts.TASKDEFINITION_SOURCE) {
+    config.TASKDEFINITION_SOURCE = opts.TASKDEFINITION_SOURCE;
   }
 
   const currentTaskDefinition = await getTaskDefinition(config);

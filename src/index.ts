@@ -215,7 +215,6 @@ function tryPrependRepo(image, endpoint) {
 }
 
 export async function start(config: IConfig, loginFlag = true) {
-
   let image = config.IMAGE;
   if (loginFlag && isECR(config.IMAGE!)) {
     image = await login(config);
@@ -241,5 +240,4 @@ export async function start(config: IConfig, loginFlag = true) {
   }
 
   console.log(chalk.bold.green('\nDONE'));
-
 }
