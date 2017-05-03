@@ -240,9 +240,8 @@ function getContainer(containerName, taskDefinition: TaskDefinition) {
 
 function nextTask(taskDefinition: TaskDefinition, nextContainer: Container): TaskDefinition {
   return {
-    family: taskDefinition.family,
-    volumes: taskDefinition.volumes,
-    containerDefinitions: taskDefinition.containerDefinitions.map<Container>(function (container) {
+    ...taskDefinition,
+    containerDefinitions: taskDefinition.containerDefinitions.map((container) => {
       if (container.name === nextContainer.name) {
         return nextContainer;
       }
