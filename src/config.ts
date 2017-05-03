@@ -1,5 +1,5 @@
-import * as deployer from './ecs-deploy';
 import * as path from 'path';
+import * as deployer from './ecs-deploy';
 
 const configDefaults: IConfig = {
   REGION: 'eu-west-1',
@@ -26,7 +26,6 @@ export interface IConfig {
   TASKDEFINITION_KEY?: string;
   DOCKERFILE?: string;
 }
-
 
 let config = Object.assign({}, configDefaults);
 const configFilePath = path.join(process.cwd(), 'ecs-updater');

@@ -1,6 +1,6 @@
 import * as AWS from 'aws-sdk';
-import * as _ from 'lodash';
 import * as _debug from 'debug';
+import * as _ from 'lodash';
 import { inspect } from 'util';
 
 const debug = _debug('ecs-updater');
@@ -9,7 +9,6 @@ import { IConfig } from './config';
 const TASKDEFINITION_SUFFIX =  '_taskdefinition.json';
 const TAG_SUFFIX =  '_tag';
 const REVISION_SUFFIX =  '_revision';
-
 
 export interface Container { image: string; environment: string; name: string; }
 export interface TaskDefinition {
@@ -23,28 +22,28 @@ export interface RegisteredTaskDefinition extends TaskDefinition {
   status: string;
 }
 
-let _ecs: any;
+let _ecs: AWS.ECS;
 function getECS(region?: string) {
   if (!_ecs) {
-    const awsecs = new AWS.ECS({ region });
-    _ecs = promisifyMethods(awsecs, [
-      'describeServices',
-      'registerTaskDefinition',
-      'updateService',
-      'describeTaskDefinition',
-    ]);
+    _ecs = new AWS.ECS({ region });
+    // _ecs = promisifyMethods(awsecs, [
+    //   'describeServices',
+    //   'registerTaskDefinition',
+    //   'updateService',
+    //   'describeTaskDefinition',
+    // ]);
   }
   return _ecs;
 }
 
-let _s3: any;
+let _s3: AWS.S3;
 function getS3(region?: string) {
   if (!_s3) {
-    const awss3 = new AWS.S3({ region });
-    _s3 = promisifyMethods(awss3, [
-      'getObject',
-      'putObject',
-    ]);
+    _s3 = new AWS.S3({ region });
+    // _s3 = promisifyMethods(awss3, [
+    //   'getObject',
+    //   'putObject',
+    // ]);
   }
   return _s3;
 }
@@ -53,17 +52,16 @@ export async function getRegisteredTaskDefinition(config: IConfig): Promise<Regi
   const ecs = getECS(config.REGION);
 
   const result = await ecs.describeServices({
-    cluster: config.CLUSTER, services: [config.SERVICE],
-  });
+    cluster: config.CLUSTER!,
+    services: [config.SERVICE!],
+  }).promise();
 
   const tdResponse = await ecs.describeTaskDefinition({
-    taskDefinition: result.services[0].taskDefinition,
-  });
+    taskDefinition: result.services![0].taskDefinition!,
+  }).promise();
 
-  return tdResponse.taskDefinition;
+  return (tdResponse.taskDefinition as any) as RegisteredTaskDefinition;
 }
-
-
 
 export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition | RegisteredTaskDefinition> {
   const taskDefinition = await getS3TaskDefinition(config);
@@ -73,8 +71,6 @@ export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition
   }
   return getRegisteredTaskDefinition(config);
 }
-
-
 
 export async function getS3TaskDefinition(config: IConfig) {
   const taskDefinition = await getS3Object<TaskDefinition>(config, TASKDEFINITION_SUFFIX, config.TASKDEFINITION_KEY);
@@ -88,7 +84,6 @@ export function getS3ImageTag(config: IConfig) {
   return getS3Object<string>(config, TAG_SUFFIX);
 }
 
-
 export function registerTaskDefinition(
   config: IConfig,
   _taskDefinition: TaskDefinition): Promise<RegisteredTaskDefinition> {
@@ -98,8 +93,8 @@ export function registerTaskDefinition(
     taskDefinition = registeredToVanilla(_taskDefinition);
   }
   const ecs = getECS(config.REGION);
-  return ecs.registerTaskDefinition(taskDefinition)
-    .then(result => result.taskDefinition);
+  return ecs.registerTaskDefinition(taskDefinition as any).promise()
+    .then(result => result.taskDefinition as any);
 }
 
 function registeredToVanilla(definition: RegisteredTaskDefinition): TaskDefinition {
@@ -115,13 +110,13 @@ export function isRegistered(
   return (<RegisteredTaskDefinition> definition).taskDefinitionArn !== undefined;
 }
 
-export async function restartService(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
+export function restartService(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
   const ecs = getECS(config.REGION);
   return ecs.updateService({
-    cluster: config.CLUSTER,
-    service: config.SERVICE,
+    cluster: config.CLUSTER!,
+    service: config.SERVICE!,
     taskDefinition: taskDefinition.taskDefinitionArn,
-  });
+  }).promise();
 }
 
 export async function deploy(opts: IConfig) {
@@ -137,7 +132,7 @@ export async function deploy(opts: IConfig) {
   if (missingValues.length) {
     throw new Error(
       'Error: All configuration values are required.  ' +
-      'Missing values: ' + missingValues.join(', ')
+      'Missing values: ' + missingValues.join(', '),
     );
   }
 
@@ -151,13 +146,12 @@ export async function deploy(opts: IConfig) {
     config.TASKDEFINITION_KEY = opts.TASKDEFINITION_KEY;
   }
 
-
   const currentTaskDefinition = await getTaskDefinition(config);
   const currentContainer = getContainer(config.CONTAINER, currentTaskDefinition);
   const nextContainer = {
     ...currentContainer,
     image: config.IMAGE_TAG ? updateTag(currentContainer.image, config.IMAGE_TAG) : currentContainer.image,
-  }
+  };
   const nextTaskDefinition = nextTask(currentTaskDefinition, nextContainer);
   const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
 
@@ -182,7 +176,7 @@ export async function terraformRestart(opts: IConfig) {
   if (missingValues.length) {
     throw new Error(
       'Error: All configuration values are required.  ' +
-      'Missing values: ' + missingValues.join(', ')
+      'Missing values: ' + missingValues.join(', '),
     );
   }
   if (opts.TASKDEFINITION_KEY) {
@@ -201,7 +195,7 @@ export async function terraformRestart(opts: IConfig) {
   const nextContainer = {
     ...currentContainer,
     image: updateTag(currentContainer.image, imageTag),
-  }
+  };
 
   const nextTaskDefinition = nextTask(template, nextContainer);
   const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
@@ -212,7 +206,6 @@ export async function terraformRestart(opts: IConfig) {
     container: nextContainer,
   };
 }
-
 
 export async function restart(opts: IConfig) {
   const config = overrideValues(opts, {
@@ -225,7 +218,7 @@ export async function restart(opts: IConfig) {
   if (missingValues.length) {
     throw new Error(
       'Error: All configuration values are required.  ' +
-      'Missing values: ' + missingValues.join(', ')
+      'Missing values: ' + missingValues.join(', '),
     );
   }
 
@@ -260,7 +253,6 @@ function nextTask(taskDefinition: TaskDefinition, nextContainer: Container): Tas
 }
 
 export function updateTag(image: string, tag: string) {
-  let currentTag: string | undefined;
   const parts = /^(https?:\/\/)?([\w-_.\/]+)(:\w+)?$/.exec(image);
   if (!parts) {
     throw new Error(`Invalid container image: ${image}`);
@@ -313,7 +305,6 @@ function getTag(imageWithTag: string) {
   return parts[parts.length - 1];
 }
 
-
 export function overrideValues(overrides, defaults) {
   return _.assign({}, defaults, _.pick(overrides, _.keys(defaults)));
 }
@@ -322,33 +313,10 @@ function falseyKeys(obj) {
   return Object.keys(obj).filter(k => obj[k] === '');
 }
 
-function promisifyMethods(obj, methods) {
-  methods.forEach((m) => {
-    obj[m] = promisify(obj[m], obj);
-  });
-  return obj;
-}
-
-function promisify(fn, context) {
-  return function () {
-    const args = _.toArray(arguments);
-    return new Promise(function (resolve, reject) {
-      fn.apply(context, args.concat(function (error, result) {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      }));
-    });
-  };
-}
-
 function upsert(array, keys, item) {
   const id = _.pick(item, keys);
   return _.without(array, _.find(array, id)).concat(item);
 }
-
 
 async function getS3Object<T>(config: IConfig, suffix?: string, key?: string): Promise<T | string | undefined> {
   if (!config.BUCKET || !config.KEY) {
@@ -361,7 +329,7 @@ async function getS3Object<T>(config: IConfig, suffix?: string, key?: string): P
     const response = await S3.getObject({
       Bucket: config.BUCKET,
       Key,
-    });
+    }).promise();
     let body = response.Body;
     if (Buffer.isBuffer(body)) {
       body = body.toString();

@@ -9,7 +9,6 @@ import { inspect } from 'util';
 
 import config, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
-import { promisify } from './promisify';
 
 const debug = _debug('ecs-updater');
 
@@ -53,7 +52,7 @@ switch (opts.subCommand) {
     break;
   default:
     if (!opts.subCommand) {
-      start(config, opts.login)
+      start(config, opts.login as any)
         .catch(fail());
     } else {
       console.error('Invalid syntax');
@@ -107,7 +106,7 @@ export async function terraformRestart(config: IConfig) {
 }
 
 async function runDocker(...args: string[]): Promise<boolean> {
-  let stdio: any = 'inherit';
+  const stdio = 'inherit';
   let silent = false;
   if (args[0] === 'silent') {
     args.shift();
@@ -142,16 +141,18 @@ interface EcrLogin {
 }
 
 export async function ecrLogin(config: IConfig): Promise<EcrLogin> {
-  const ecr = new (<any>AWS).ECR({ region: config.REGION });
-  const getToken = promisify<any>(ecr.getAuthorizationToken, ecr);
-  const response = await getToken();
+  const ecr = new AWS.ECR({ region: config.REGION });
+  const response = await ecr.getAuthorizationToken().promise();
+  if (!response.authorizationData) {
+    throw new Error('Invalid response');
+  }
   const o = response.authorizationData[0];
-  const login = Buffer.from(o.authorizationToken, 'base64').toString('utf8');
+  const login = Buffer.from(o.authorizationToken!, 'base64').toString('utf8');
   const parts = login.split(':');
   return {
     user: parts[0],
     password: parts[1],
-    endpoint: o.proxyEndpoint,
+    endpoint: o.proxyEndpoint!,
   };
 }
 
@@ -162,7 +163,7 @@ function dockerLogin({user, password, endpoint}) {
     '-u', user,
     '-p', password,
     '-e', 'none',
-    endpoint
+    endpoint,
   );
 }
 
@@ -171,14 +172,14 @@ function build(config: IConfig, image?) {
     'build',
     '-f', config.DOCKERFILE!,
     '-t', `${image || config.IMAGE}:${config.IMAGE_TAG}`,
-    '.'
+    '.',
   );
 }
 
 function push(config: IConfig, image?) {
   return runDocker(
     'push',
-    `${image || config.IMAGE}:${config.IMAGE_TAG}`
+    `${image || config.IMAGE}:${config.IMAGE_TAG}`,
   );
 }
 
@@ -193,13 +194,10 @@ async function login(config: IConfig) {
   return tryPrependRepo(config.IMAGE, credentials.endpoint);
 }
 
-
-
 function getRevision(taskDefinitionArn: string) {
   const parts = taskDefinitionArn.split(':');
   return parseInt(parts[parts.length - 1], 10);
 }
-
 
 function isECR(image: string) {
   return image.indexOf('/') === -1; // we assume Docker Hub otherwise
@@ -243,6 +241,5 @@ export async function start(config: IConfig, loginFlag = true) {
   }
 
   console.log(chalk.bold.green('\nDONE'));
-
 
 }

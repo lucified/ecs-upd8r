@@ -1,0 +1,7 @@
+{
+  "REGION": "eu-west-1",
+  "CLUSTER": "new",
+  "SERVICE": "lucifer",
+  "BUCKET": "lucify-configuration",
+  "KEY": "ecs_services/lucifer"
+}

@@ -1,11 +1,7 @@
 machine:
   node:
-    version: 6.1.0
-  environment:
-    PROJECT: $CIRCLE_PROJECT_REPONAME
-    BRANCH: $CIRCLE_BRANCH
-    COMMIT: $CIRCLE_SHA1
-
-dependencies:
-  pre:
-    - npm install typescript@beta
+    version: 7.9
+test:
+  override:
+    - npm run lint
+    - npm test
