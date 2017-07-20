@@ -7,7 +7,7 @@ import * as program from 'commander';
 import * as _debug from 'debug';
 import { inspect } from 'util';
 
-import config, { IConfig } from './config';
+import loadedConfig, { IConfig } from './config';
 import * as deployer from './ecs-deploy';
 
 const debug = _debug('ecs-updater');
@@ -16,11 +16,15 @@ require('pkginfo')(module, 'version');
 program
   .version(module.exports.version)
   .usage('[options]')
-  .description(`Build, tag and upload a Docker image and then restart an ECS service.
-  Optionally specify a sub-command.`)
-  .option('-s, --sub-command <which>',
-  'login|build|restart-service|restart-terraform|taskDefinition',
-  /^(login|build|restart\-service|restart\-terraform|taskDefinition)$/)
+  .description(
+    `Build, tag and upload a Docker image and then restart an ECS service.
+  Optionally specify a sub-command.`,
+  )
+  .option(
+    '-s, --sub-command <which>',
+    'login|build|restart-service|restart-terraform|taskDefinition',
+    /^(login|build|restart\-service|restart\-terraform|taskDefinition)$/,
+  )
   .option('--no-login', 'Skip login')
   .parse(process.argv);
 
@@ -28,32 +32,28 @@ const opts = program.opts();
 
 switch (opts.subCommand) {
   case 'login':
-    ecrLogin(config)
-      .then(dockerLogin)
-      .then(console.log, fail());
+    ecrLogin(loadedConfig).then(dockerLogin).then(console.log, fail());
     break;
   case 'build':
-    ecrLogin(config)
-      .then(r => build(config, tryPrependRepo(config.IMAGE, r.endpoint)))
+    ecrLogin(loadedConfig)
+      .then(r => build(loadedConfig, tryPrependRepo(loadedConfig.IMAGE!, r.endpoint)))
       .then(console.log, fail());
     break;
   case 'restart-service':
-    restartService(config)
-      .then(logObject, fail());
+    restartService(loadedConfig).then(logObject, fail());
     break;
   case 'restart-terraform':
-    terraformRestart(config)
-      .then(logObject, fail());
+    terraformRestart(loadedConfig).then(logObject, fail());
     break;
   case 'taskDefinition':
-    deployer.getTaskDefinition(config)
-      .then(current => deployer.registerTaskDefinition(config, current))
+    deployer
+      .getTaskDefinition(loadedConfig)
+      .then(current => deployer.registerTaskDefinition(loadedConfig, current))
       .then(logObject, fail());
     break;
   default:
     if (!opts.subCommand) {
-      start(config, opts.login as any)
-        .catch(fail());
+      start(loadedConfig, opts.login as any).catch(fail());
     } else {
       console.error('Invalid syntax');
     }
@@ -64,7 +64,7 @@ function fail(msg?: string) {
   if (msg) {
     console.log(msg);
   }
-  return (err) => {
+  return (err: any) => {
     console.log(chalk.bold.red('\nFailed with error:\n'));
     console.log(err);
     process.exit(1);
@@ -77,7 +77,6 @@ function logObject(obj: any, depth = 4) {
 }
 
 export async function restartService(config: IConfig) {
-
   const { current, previous } = await deployer.restart(config);
   await deployer.syncRevision(config, current);
 
@@ -88,12 +87,19 @@ export async function restartService(config: IConfig) {
 }
 
 export async function terraformRestart(config: IConfig) {
-
-  console.log(chalk.bold.green('\nRestarting the service to use the latest taskDefinition in S3\n'));
+  console.log(
+    chalk.bold.green(
+      '\nRestarting the service to use the latest taskDefinition in S3\n',
+    ),
+  );
   debug(config);
-  const {container, taskDefinition} = await deployer.terraformRestart(config);
+  const { container, taskDefinition } = await deployer.terraformRestart(config);
 
-  console.log('Updated service %s to revision %s', config.SERVICE, taskDefinition.revision);
+  console.log(
+    'Updated service %s to revision %s',
+    config.SERVICE,
+    taskDefinition.revision,
+  );
 
   console.log(chalk.bold.green('\nSyncing revision and image tag to S3\n'));
   await deployer.syncRevision(config, taskDefinition);
@@ -117,7 +123,7 @@ async function runDocker(...args: string[]): Promise<boolean> {
     if (!silent) {
       console.log(['docker'].concat(args).join(' '));
     }
-    docker.on('close', (code) => {
+    docker.on('close', code => {
       if (code !== 0) {
         console.log(`docker process exited with code ${code}`);
         reject(code);
@@ -126,12 +132,11 @@ async function runDocker(...args: string[]): Promise<boolean> {
       resolve(true);
     });
 
-    docker.on('error', (err) => {
+    docker.on('error', err => {
       console.log(`docker process exited with code ${err}`);
       reject(err);
     });
   });
-
 }
 
 interface EcrLogin {
@@ -147,8 +152,8 @@ export async function ecrLogin(config: IConfig): Promise<EcrLogin> {
     throw new Error('Invalid response');
   }
   const o = response.authorizationData[0];
-  const login = Buffer.from(o.authorizationToken!, 'base64').toString('utf8');
-  const parts = login.split(':');
+  const _login = Buffer.from(o.authorizationToken!, 'base64').toString('utf8');
+  const parts = _login.split(':');
   return {
     user: parts[0],
     password: parts[1],
@@ -156,31 +161,45 @@ export async function ecrLogin(config: IConfig): Promise<EcrLogin> {
   };
 }
 
-function dockerLogin({user, password, endpoint}) {
+async function dockerLogin({ user, password, endpoint }: { user: string, password: string, endpoint: string }) {
+  const withoutEmail = await runDocker(
+    'silent',
+    'login',
+    '-u',
+    user,
+    '-p',
+    password,
+    endpoint,
+  );
+  if (withoutEmail) {
+    return true;
+  }
   return runDocker(
     'silent',
     'login',
-    '-u', user,
-    '-p', password,
-    '-e', 'none',
+    '-u',
+    user,
+    '-p',
+    password,
+    '-e',
+    'none',
     endpoint,
   );
 }
 
-function build(config: IConfig, image?) {
+function build(config: IConfig, image?: string) {
   return runDocker(
     'build',
-    '-f', config.DOCKERFILE!,
-    '-t', `${image || config.IMAGE}:${config.IMAGE_TAG}`,
+    '-f',
+    config.DOCKERFILE!,
+    '-t',
+    `${image || config.IMAGE}:${config.IMAGE_TAG}`,
     '.',
   );
 }
 
-function push(config: IConfig, image?) {
-  return runDocker(
-    'push',
-    `${image || config.IMAGE}:${config.IMAGE_TAG}`,
-  );
+function push(config: IConfig, image?: string) {
+  return runDocker('push', `${image || config.IMAGE}:${config.IMAGE_TAG}`);
 }
 
 async function login(config: IConfig) {
@@ -191,19 +210,14 @@ async function login(config: IConfig) {
   // login with Docker
   await dockerLogin(credentials);
 
-  return tryPrependRepo(config.IMAGE, credentials.endpoint);
-}
-
-function getRevision(taskDefinitionArn: string) {
-  const parts = taskDefinitionArn.split(':');
-  return parseInt(parts[parts.length - 1], 10);
+  return tryPrependRepo(config.IMAGE!, credentials.endpoint);
 }
 
 function isECR(image: string) {
   return image.indexOf('/') === -1; // we assume Docker Hub otherwise
 }
 
-function tryPrependRepo(image, endpoint) {
+function tryPrependRepo(image: string, endpoint: string) {
   let newImage = image;
   if (isECR(image)) {
     const parts = endpoint.split('//');
@@ -227,11 +241,18 @@ export async function start(config: IConfig, loginFlag = true) {
   await push(config, image);
 
   // deploy service
-  console.log(chalk.bold.green('\nRestarting ECS service %s\n'), config.SERVICE);
-  const configCopy = Object.assign({}, config, { IMAGE: image });
-  const {container, taskDefinition} = await deployer.deploy(configCopy);
+  console.log(
+    chalk.bold.green('\nRestarting ECS service %s\n'),
+    config.SERVICE,
+  );
+  const configCopy = {...config, IMAGE: image };
+  const { container, taskDefinition } = await deployer.deploy(configCopy);
 
-  console.log('Updated service %s to use image %s', config.SERVICE, container.image);
+  console.log(
+    'Updated service %s to use image %s',
+    config.SERVICE,
+    container.image,
+  );
 
   if (config.BUCKET && config.KEY) {
     console.log(chalk.bold.green('\nUpdating revision and image tag to S3\n'));

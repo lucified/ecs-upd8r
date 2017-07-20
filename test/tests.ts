@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { IConfig } from '../src/config';
 import * as ecs from '../src/ecs-deploy';
-import { Container, updateTag } from '../src/ecs-deploy';
+import { updateTag } from '../src/ecs-deploy';
 
 console.log(`[WARNING] The tests are run against REAL services.
 Make sure that the service described by the config is something dispensable.\n`);

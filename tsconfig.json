@@ -1,8 +1,11 @@
 {
+  "include": [
+    "src/"
+  ],
   "compilerOptions": {
     "outDir": "./dist/",
     "sourceMap": true,
-    "noImplicitAny": false,
+    "strict": true,
     "target": "es6",
     "module": "commonjs",
     "experimentalDecorators": true,
@@ -11,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": false,
     "noFallthroughCasesInSwitch": true,
-    "noUnusedLocals": false,
+    "noUnusedLocals": true,
     "noUnusedParameters": false, // unused params starting with _ are still allowed
     "pretty": true,
     "noImplicitReturns": true,

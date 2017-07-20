@@ -1,16 +1,19 @@
 import * as AWS from 'aws-sdk';
 import * as _debug from 'debug';
 import * as _ from 'lodash';
-import { inspect } from 'util';
 
 const debug = _debug('ecs-updater');
 import { IConfig } from './config';
 
-const TASKDEFINITION_SUFFIX =  '_taskdefinition.json';
-const TAG_SUFFIX =  '_tag';
-const REVISION_SUFFIX =  '_revision';
+const TASKDEFINITION_SUFFIX = '_taskdefinition.json';
+const TAG_SUFFIX = '_tag';
+const REVISION_SUFFIX = '_revision';
 
-export interface Container { image: string; environment: string; name: string; }
+export interface Container {
+  image: string;
+  environment: string;
+  name: string;
+}
 export interface TaskDefinition {
   family: string;
   volumes?: any;
@@ -38,22 +41,30 @@ function getS3(region?: string) {
   return _s3;
 }
 
-export async function getRegisteredTaskDefinition(config: IConfig): Promise<RegisteredTaskDefinition> {
+export async function getRegisteredTaskDefinition(
+  config: IConfig,
+): Promise<RegisteredTaskDefinition> {
   const ecs = getECS(config.REGION);
 
-  const result = await ecs.describeServices({
-    cluster: config.CLUSTER!,
-    services: [config.SERVICE!],
-  }).promise();
+  const result = await ecs
+    .describeServices({
+      cluster: config.CLUSTER!,
+      services: [config.SERVICE!],
+    })
+    .promise();
 
-  const tdResponse = await ecs.describeTaskDefinition({
-    taskDefinition: result.services![0].taskDefinition!,
-  }).promise();
+  const tdResponse = await ecs
+    .describeTaskDefinition({
+      taskDefinition: result.services![0].taskDefinition!,
+    })
+    .promise();
 
   return (tdResponse.taskDefinition as any) as RegisteredTaskDefinition;
 }
 
-export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition | RegisteredTaskDefinition> {
+export async function getTaskDefinition(
+  config: IConfig,
+): Promise<TaskDefinition | RegisteredTaskDefinition> {
   if (config.TASKDEFINITION_SOURCE === 'ecs-only') {
     console.log(`[INFO] Using taskDefinition from ecs`);
     return getRegisteredTaskDefinition(config);
@@ -68,7 +79,11 @@ export async function getTaskDefinition(config: IConfig): Promise<TaskDefinition
 }
 
 export async function getS3TaskDefinition(config: IConfig) {
-  const taskDefinition = await getS3Object<TaskDefinition>(config, TASKDEFINITION_SUFFIX, config.TASKDEFINITION_KEY);
+  const taskDefinition = await getS3Object<TaskDefinition>(
+    config,
+    TASKDEFINITION_SUFFIX,
+    config.TASKDEFINITION_KEY,
+  );
   if (taskDefinition && typeof taskDefinition !== 'string') {
     return taskDefinition;
   }
@@ -81,18 +96,22 @@ export function getS3ImageTag(config: IConfig) {
 
 export function registerTaskDefinition(
   config: IConfig,
-  _taskDefinition: TaskDefinition): Promise<RegisteredTaskDefinition> {
-
+  _taskDefinition: TaskDefinition,
+): Promise<RegisteredTaskDefinition> {
   let taskDefinition = _taskDefinition;
   if (isRegistered(_taskDefinition)) {
     taskDefinition = registeredToVanilla(_taskDefinition);
   }
   const ecs = getECS(config.REGION);
-  return ecs.registerTaskDefinition(taskDefinition as any).promise()
+  return ecs
+    .registerTaskDefinition(taskDefinition as any)
+    .promise()
     .then(result => result.taskDefinition as any);
 }
 
-function registeredToVanilla(definition: RegisteredTaskDefinition): TaskDefinition {
+function registeredToVanilla(
+  definition: RegisteredTaskDefinition,
+): TaskDefinition {
   return {
     family: definition.family,
     containerDefinitions: definition.containerDefinitions,
@@ -101,17 +120,25 @@ function registeredToVanilla(definition: RegisteredTaskDefinition): TaskDefiniti
 }
 
 export function isRegistered(
-  definition: TaskDefinition | RegisteredTaskDefinition): definition is RegisteredTaskDefinition {
-  return (<RegisteredTaskDefinition> definition).taskDefinitionArn !== undefined;
+  definition: TaskDefinition | RegisteredTaskDefinition,
+): definition is RegisteredTaskDefinition {
+  return (
+    (definition as RegisteredTaskDefinition).taskDefinitionArn !== undefined
+  );
 }
 
-export function restartService(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
+export function restartService(
+  config: IConfig,
+  taskDefinition: RegisteredTaskDefinition,
+) {
   const ecs = getECS(config.REGION);
-  return ecs.updateService({
-    cluster: config.CLUSTER!,
-    service: config.SERVICE!,
-    taskDefinition: taskDefinition.taskDefinitionArn,
-  }).promise();
+  return ecs
+    .updateService({
+      cluster: config.CLUSTER!,
+      service: config.SERVICE!,
+      taskDefinition: taskDefinition.taskDefinitionArn,
+    })
+    .promise();
 }
 
 export async function deploy(opts: IConfig) {
@@ -127,7 +154,8 @@ export async function deploy(opts: IConfig) {
   if (missingValues.length) {
     throw new Error(
       'Error: All configuration values are required.  ' +
-      'Missing values: ' + missingValues.join(', '),
+        'Missing values: ' +
+        missingValues.join(', '),
     );
   }
 
@@ -145,13 +173,21 @@ export async function deploy(opts: IConfig) {
   }
 
   const currentTaskDefinition = await getTaskDefinition(config);
-  const currentContainer = getContainer(config.CONTAINER, currentTaskDefinition);
+  const currentContainer = getContainer(
+    config.CONTAINER!,
+    currentTaskDefinition,
+  );
   const nextContainer = {
     ...currentContainer,
-    image: config.IMAGE_TAG ? updateTag(currentContainer.image, config.IMAGE_TAG) : currentContainer.image,
+    image: config.IMAGE_TAG
+      ? updateTag(currentContainer.image, config.IMAGE_TAG)
+      : currentContainer.image,
   };
   const nextTaskDefinition = nextTask(currentTaskDefinition, nextContainer);
-  const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
+  const registeredTaskDefinition = await registerTaskDefinition(
+    config,
+    nextTaskDefinition,
+  );
 
   await restartService(config, registeredTaskDefinition);
   return {
@@ -174,7 +210,8 @@ export async function terraformRestart(opts: IConfig) {
   if (missingValues.length) {
     throw new Error(
       'Error: All configuration values are required.  ' +
-      'Missing values: ' + missingValues.join(', '),
+        'Missing values: ' +
+        missingValues.join(', '),
     );
   }
   if (opts.TASKDEFINITION_KEY) {
@@ -189,14 +226,17 @@ export async function terraformRestart(opts: IConfig) {
   if (!imageTag) {
     throw new Error("Couldn't find image tag from S3");
   }
-  const currentContainer = getContainer(config.CONTAINER, template);
+  const currentContainer = getContainer(config.CONTAINER!, template);
   const nextContainer = {
     ...currentContainer,
     image: updateTag(currentContainer.image, imageTag),
   };
 
   const nextTaskDefinition = nextTask(template, nextContainer);
-  const registeredTaskDefinition = await registerTaskDefinition(config, nextTaskDefinition);
+  const registeredTaskDefinition = await registerTaskDefinition(
+    config,
+    nextTaskDefinition,
+  );
 
   await restartService(config, registeredTaskDefinition);
   return {
@@ -216,12 +256,16 @@ export async function restart(opts: IConfig) {
   if (missingValues.length) {
     throw new Error(
       'Error: All configuration values are required.  ' +
-      'Missing values: ' + missingValues.join(', '),
+        'Missing values: ' +
+        missingValues.join(', '),
     );
   }
 
   const template = await getRegisteredTaskDefinition(config);
-  const registeredTaskDefinition = await registerTaskDefinition(config, template);
+  const registeredTaskDefinition = await registerTaskDefinition(
+    config,
+    template,
+  );
 
   await restartService(config, registeredTaskDefinition);
   return {
@@ -230,18 +274,25 @@ export async function restart(opts: IConfig) {
   };
 }
 
-function getContainer(containerName, taskDefinition: TaskDefinition) {
-  const containers = taskDefinition.containerDefinitions.filter(container => container.name === containerName);
+function getContainer(containerName: string, taskDefinition: TaskDefinition) {
+  const containers = taskDefinition.containerDefinitions.filter(
+    container => container.name === containerName,
+  );
   if (containers.length === 0) {
-    throw new Error(`The taskDefinition didn't have a container named ${containerName}`);
+    throw new Error(
+      `The taskDefinition didn't have a container named ${containerName}`,
+    );
   }
   return containers[0];
 }
 
-function nextTask(taskDefinition: TaskDefinition, nextContainer: Container): TaskDefinition {
+function nextTask(
+  taskDefinition: TaskDefinition,
+  nextContainer: Container,
+): TaskDefinition {
   return {
     ...taskDefinition,
-    containerDefinitions: taskDefinition.containerDefinitions.map((container) => {
+    containerDefinitions: taskDefinition.containerDefinitions.map(container => {
       if (container.name === nextContainer.name) {
         return nextContainer;
       }
@@ -260,7 +311,10 @@ export function updateTag(image: string, tag: string) {
   return newImage;
 }
 
-export async function syncRevision(config: IConfig, taskDefinition: RegisteredTaskDefinition) {
+export async function syncRevision(
+  config: IConfig,
+  taskDefinition: RegisteredTaskDefinition,
+) {
   if (!config.BUCKET || !config.KEY) {
     throw new Error(`Can't syncRevision since BUCKET or KEY is not set`);
   }
@@ -292,31 +346,24 @@ export async function syncImageTag(config: IConfig, container: Container) {
   console.log(`s3://${config.BUCKET}/${tagKey} => ${tag}`);
 }
 
-function getImage(imageWithTag: string) {
-  const parts = imageWithTag.split(':');
-  parts.pop();
-  return parts.join(':');
-}
-
 function getTag(imageWithTag: string) {
   const parts = imageWithTag.split(':');
   return parts[parts.length - 1];
 }
 
-export function overrideValues(overrides, defaults) {
+export function overrideValues(overrides: any, defaults: any) {
   return _.assign({}, defaults, _.pick(overrides, _.keys(defaults)));
 }
 
-function falseyKeys(obj) {
+function falseyKeys(obj: { [key: string]: any }) {
   return Object.keys(obj).filter(k => obj[k] === '');
 }
 
-function upsert(array, keys, item) {
-  const id = _.pick(item, keys);
-  return _.without(array, _.find(array, id)).concat(item);
-}
-
-async function getS3Object<T>(config: IConfig, suffix?: string, key?: string): Promise<T | string | undefined> {
+async function getS3Object<T>(
+  config: IConfig,
+  suffix?: string,
+  key?: string,
+): Promise<T | string | undefined> {
   if (!config.BUCKET || !config.KEY) {
     return undefined;
   }

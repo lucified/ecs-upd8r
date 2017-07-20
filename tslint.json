@@ -4,7 +4,7 @@
     "quotemark": [true, "single", "avoid-escape", "jsx-double"],
     "no-var-requires": false,
     "object-literal-sort-keys": false,
-    "no-console": [],
+    "no-console": [false],
     "member-ordering": [false],
     "arrow-parens": false,
     "array-type": [true, "array"],
@@ -13,9 +13,23 @@
     "object-literal-key-quotes": [false, "as-needed"],
     "variable-name": [true, "ban-keywords", "check-format", "allow-leading-underscore", "allow-pascal-case"],
     "space-before-function-paren": false,
-    "no-angle-bracket-type-assertion": false,
     "no-empty-interface": false,
-    "no-unused-expression": false
+    "no-unused-expression": false,
+    "no-object-literal-type-assertion": [false],
+    "semicolon": [true, "always", "ignore-bound-class-methods"]
   },
+  "jsRules": {
+    "arrow-parens": false,
+    "array-type": [true, "array"],
+    "interface-name": [false, "always-prefix"],
+    "max-classes-per-file": [false],
+    "member-ordering": [false],
+    "no-var-requires": false,
+    "object-literal-key-quotes": [true, "as-needed"],
+    "object-literal-sort-keys": false,
+    "quotemark": [true, "single", "avoid-escape", "jsx-double"],
+    "variable-name": [true, "ban-keywords", "check-format", "allow-leading-underscore", "allow-pascal-case"]
+  },
+  "defaultSeverity": "warning",
   "rulesDirectory": []
 }

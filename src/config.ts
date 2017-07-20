@@ -29,7 +29,7 @@ export interface IConfig {
   TASKDEFINITION_SOURCE: 'ecs-only' | 'both';
 }
 
-let config = Object.assign({}, configDefaults);
+let config = { ...configDefaults };
 const configFilePath = path.join(process.cwd(), 'ecs-updater');
 
 const git = require('git-rev-sync');
@@ -41,11 +41,16 @@ try {
   if (err.name === 'SyntaxError') {
     throw err;
   }
-  console.log('[INFO] No config-file found in %s, using only env variables', configFilePath);
+  console.log(
+    '[INFO] No config-file found in %s, using only env variables',
+    configFilePath,
+  );
 }
 
 if (!config.IMAGE_TAG) {
-  let sha1: string = process.env.SHA1 ? process.env.SHA1 : process.env.CIRCLE_SHA1;
+  let sha1: string | undefined = process.env.SHA1
+    ? process.env.SHA1
+    : process.env.CIRCLE_SHA1;
 
   if (!sha1) {
     sha1 = git.long(process.cwd());
@@ -54,7 +59,9 @@ if (!config.IMAGE_TAG) {
   if (sha1) {
     sha1 = sha1.substr(0, 6);
     config.IMAGE_TAG = sha1;
-    const build = process.env.BUILD_NUM ? process.env.BUILD_NUM : process.env.CIRCLE_BUILD_NUM;
+    const build = process.env.BUILD_NUM
+      ? process.env.BUILD_NUM
+      : process.env.CIRCLE_BUILD_NUM;
     if (build) {
       config.IMAGE_TAG = `${build}_${config.IMAGE_TAG}`;
     }
